@@ -5,10 +5,10 @@ Development Tool.
 ## Installation
 
 ### For Users (pipx)
+Recommended for system-wide access:
 ```bash
-pipx install git+<REPO_URL>
+pipx install git+https://github.com/krisrowe/gtdev.git
 ```
-Note: Tests are excluded from this installation.
 
 ### For Developers
 ```bash

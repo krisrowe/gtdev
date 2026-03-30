@@ -1,0 +1,2 @@
+[console_scripts]
+gtdev = gtdev.cli.main:main

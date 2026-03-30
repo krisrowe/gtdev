@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+src/gtdev/sdk.py
+src/gtdev.egg-info/PKG-INFO
+src/gtdev.egg-info/SOURCES.txt
+src/gtdev.egg-info/dependency_links.txt
+src/gtdev.egg-info/entry_points.txt
+src/gtdev.egg-info/requires.txt
+src/gtdev.egg-info/top_level.txt
+src/gtdev/cli/main.py

@@ -1,0 +1,30 @@
+Metadata-Version: 2.4
+Name: gtdev
+Version: 0.1.0
+Summary: Development Tool
+Author-email: Kris Rowe <user@example.com>
+License: Proprietary
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: click
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-timeout; extra == "dev"
+
+# gtdev
+
+Development Tool.
+
+## Installation
+
+### For Users (pipx)
+Recommended for system-wide access:
+```bash
+pipx install git+https://github.com/krisrowe/gtdev.git
+```
+
+### For Developers
+```bash
+make setup
+make test
+```
