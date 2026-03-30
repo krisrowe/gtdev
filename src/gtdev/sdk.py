@@ -26,11 +26,12 @@ def get_config_dir() -> Path:
 
 def find_local_repos(root_path: Path, pattern: str = '*'):
     repos = []
-    # Make scan depth configurable via environment variable, defaulting to 4
     depth = os.environ.get('GTDEV_GIT_SCAN_DEPTH', '4')
     try:
+        # Corrected find logic: find .git, print it, and PRUNE it so we don't scan its internals.
+        # Also prune any other hidden directories.
         result = subprocess.run(
-            ['find', str(root_path), '-maxdepth', depth, '(', '-name', '.git', '-type', 'd', '-print', ')', '-o', '(', '-name', '.*', '-prune', ')'],
+            ['find', str(root_path), '-maxdepth', depth, '(', '-name', '.git', '-type', 'd', '-print', '-prune', ')', '-o', '(', '-name', '.*', '-prune', ')'],
             capture_output=True, text=True
         )
         for git_dir in result.stdout.splitlines():

@@ -1,5 +1,13 @@
 import click
+import os
 from gtdev import sdk
+
+def format_path(path):
+    """Converts absolute path to tilde-relative if under home."""
+    home = os.path.expanduser('~')
+    if path.startswith(home):
+        return path.replace(home, '~', 1)
+    return path
 
 @click.group()
 def main():
@@ -29,7 +37,8 @@ def list_repos_cmd(pattern):
     click.echo(header)
     click.echo('-' * 100)
     for r in repos:
-        click.echo('%-25s %-30s %s' % (r['name'], r['github_repo'], r['path']))
+        path = format_path(r['path'])
+        click.echo('%-25s %-30s %s' % (r['name'], r['github_repo'], path))
 
 @main.group()
 def builds():
