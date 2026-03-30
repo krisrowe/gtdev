@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gtdev"
+version = "0.1.0"
+description = "Development Tool"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Proprietary"}
+authors = [
+    {name = "Kris Rowe", email = "user@example.com"}
+]
+dependencies = [
+    "click",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-timeout",
+]
+
+[project.scripts]
+gtdev = "gtdev.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+# CRITICAL: Exclude tests from the distribution to keep pipx/pip installs clean
+exclude = ["tests*", "tests.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+addopts = "-v --ignore=tests/integration"
