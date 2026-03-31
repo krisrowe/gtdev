@@ -70,7 +70,7 @@ To view logs:
 
 Instead of hunting through GitHub UI to find the right Actions tab, repo, branch, or workflow run, `gtdev` provides the exact copy/paste command you need to fetch logs for that specific run! No more looking up `gh run view` syntax or identifiers.
 
-### Analyzing with Gemini CLI
+## 6. Analyzing retrieved logs with Gemini CLI
 The `gtdev logs` command prints the logs to your terminal. Redirect them to a file to use as context for a quick Gemini CLI analysis:
 
 ```bash
@@ -80,7 +80,7 @@ $ gemini prompt "Analyze this build error log and suggest a fix." --file=build-e
 
 Gemini will analyze the issue, pinpoint the problematic code or configuration, and suggest a fix!
 
-## 6. Fixing and Re-triggering
+## 7. Fixing and Re-triggering
 After fixing the local code and pushing the change, the user can re-trigger the workflow directly.
 
 ```bash
@@ -96,7 +96,7 @@ Instead of hunting for the "Re-run workflow" button in the GitHub Actions UI or 
 
 The user runs the suggested command and confirms the new build passes.
 
-## 7. Environment Setup (Optional)
+## 8. Environment Setup (Optional)
 If the organization has a matching "fruit profile" (e.g., `pitaya`), `gtdev` provides specific guidance. The user can check their status and install missing dependencies explicitly.
 
 ```bash
