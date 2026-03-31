@@ -175,9 +175,19 @@ def show_build_cmd(id, repo):
         click.echo(f"Status:   {icon} {build_data['status']} ({build_data.get('conclusion') or 'pending'})")
         click.echo(f"Branch:   {build_data.get('headBranch', 'unknown')}")
         click.echo(f"Created:  {build_data['createdAt']}")
+        click.echo(f"Event:    {build_data.get('event', 'unknown')}")
+        click.echo(f"Workflow: {build_data.get('workflowName', 'unknown')}")
         click.echo(f"Title:    {build_data['displayTitle']}")
     
     click.echo("-" * 40)
+    
+    if build_data and build_data.get('event') == 'workflow_dispatch':
+        click.echo("To trigger this workflow again:")
+        branch = build_data.get('headBranch', 'main')
+        wf = build_data.get('workflowName')
+        click.secho(f"  gh workflow run \"{wf}\" --repo {target_repo} --ref {branch}", fg="yellow")
+        click.echo("")
+
     click.echo("To view logs:")
     click.secho(f"  gtdev logs --repo={target_repo} --id={id}", fg="cyan")
     click.echo("\nTo download logs using gh directly:")

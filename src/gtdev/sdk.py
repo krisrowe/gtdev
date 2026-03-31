@@ -104,7 +104,7 @@ def get_builds(github_repo: str, limit: int = 10, refresh: bool = False):
             except Exception:
                 pass
 
-    fields = "databaseId,status,conclusion,displayTitle,createdAt,headBranch,event"
+    fields = "databaseId,status,conclusion,displayTitle,createdAt,headBranch,event,workflowName"
     cmd = ["gh", "run", "list", "--repo", github_repo, "--limit", str(max(limit, 20)), "--json", fields]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
