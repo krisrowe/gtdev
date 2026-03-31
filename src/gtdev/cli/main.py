@@ -46,27 +46,65 @@ def builds():
     pass
 
 @builds.command(name='list')
-@click.option('--repo', required=True, help='GitHub simple name or pattern.')
-@click.option('--limit', default=5, help='Number of builds to show.')
-def list_builds_cmd(repo, limit):
-    """List recent builds for a repository."""
-    if '*' in repo or '/' not in repo:
-        profile = sdk.get_user_profile()
-        matches = sdk.find_local_repos(profile, pattern=repo)
-        if not matches:
-            click.echo(f'No repo matching {repo} found.')
-            return
-        repo = matches[0]['github_repo']
-    runs = sdk.get_builds(repo, limit=limit)
-    if not runs:
-        click.echo('No builds found.')
+@click.option('--repo', default='*', help='GitHub simple name or pattern.')
+@click.option('--user', help='Contains match on email, name, or triggering actor.')
+@click.option('--user-max-age', type=int, help='Max age in hours for commits from current user.')
+@click.option('--limit', default=10, type=int, help='Number of builds to show.')
+@click.option('--refresh', is_flag=True, help='Skip cache and fetch fresh data.')
+def list_builds_cmd(repo, user, user_max_age, limit, refresh):
+    """List recent builds for repositories."""
+    profile = sdk.get_user_profile()
+    all_repos = sdk.find_local_repos(profile, pattern=repo)
+    
+    if not all_repos:
+        click.echo(f"No repositories matching '{repo}' found.")
         return
-    header = '%-15s %-12s %-12s %-25s %s' % ('ID', 'STATUS', 'CONCLUSION', 'CREATED', 'TITLE')
+
+    # Discovery identities for user-max-age filtering
+    identities = []
+    if user_max_age:
+        identities = sdk.get_current_identities()
+
+    all_runs = []
+    for r in all_repos:
+        github_repo = r['github_repo']
+        
+        # Filter repos by user commit age if requested
+        if user_max_age:
+            if not sdk.has_recent_commits(r['path'], identities, user_max_age):
+                continue
+
+        runs = sdk.get_builds(github_repo, limit=limit, refresh=refresh)
+        for run in runs:
+            run['repo_name'] = github_repo
+            
+            # Filter runs by user if requested
+            if user:
+                actor = run.get('triggering_actor', {}).get('login', '').lower()
+                title = run.get('displayTitle', '').lower()
+                if user.lower() not in actor and user.lower() not in title:
+                    continue
+            
+            all_runs.append(run)
+
+    if not all_runs:
+        click.echo("No builds matching criteria found.")
+        return
+
+    # Sort all runs by createdAt descending
+    all_runs.sort(key=lambda x: x['createdAt'], reverse=True)
+    all_runs = all_runs[:limit]
+
+    header = '%-15s %-12s %-12s %-15s %-20s %-15s %s' % ('ID', 'STATUS', 'CONCLUSION', 'BRANCH', 'CREATED', 'EVENT', 'TITLE')
     click.echo(header)
-    click.echo('-' * 100)
-    for r in runs:
+    click.echo('-' * 120)
+    for r in all_runs:
         conc = r.get('conclusion') or 'pending'
-        click.echo('%-15s %-12s %-12s %-25s %s' % (str(r['databaseId']), r['status'], conc, r['createdAt'], r['displayTitle']))
+        actor = r.get('event', 'unknown')
+        branch = r.get('headBranch', 'unknown')
+        click.echo('%-15s %-12s %-12s %-15s %-20s %-15s %s' % (
+            str(r['databaseId']), r['status'], conc, branch, r['createdAt'], actor, r['displayTitle']
+        ))
 
 @main.command()
 @click.option('--repo', required=True, help='GitHub simple name.')
