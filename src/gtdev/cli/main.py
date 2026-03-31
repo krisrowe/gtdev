@@ -106,7 +106,7 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
     all_runs.sort(key=lambda x: x['createdAt'], reverse=True)
     all_runs = all_runs[:limit]
 
-    header = '%-12s %-4s %-20s %-15s %-12s %s' % ('ID', 'S', 'REPO', 'BRANCH', 'CREATED', 'TITLE')
+    header = '%-12s %-4s %-20s %-15s %-12s %s' % ('ID', '⚡', 'REPO', 'BRANCH', 'CREATED', 'TITLE')
     click.echo(header)
     click.echo('-' * 100)
     for r in all_runs:
