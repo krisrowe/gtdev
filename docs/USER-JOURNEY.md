@@ -68,6 +68,8 @@ To view logs:
   gtdev logs --repo=acme-corp/phoenix--apigee-gcp-infra --id=123456780
 ```
 
+Instead of hunting through GitHub UI to find the right Actions tab, repo, branch, or workflow run, `gtdev` provides the exact copy/paste command you need to fetch logs for that specific run! No more looking up `gh run view` syntax or identifiers.
+
 ## 6. Fixing and Re-triggering
 After fixing the local code and pushing the change, the user can re-trigger the workflow directly.
 
@@ -79,6 +81,8 @@ $ gtdev builds show 123456780
 To trigger this workflow again:
   gh workflow run "Infra Provisioning" --repo acme-corp/phoenix--apigee-gcp-infra --ref feat/lb-config
 ```
+
+Instead of hunting for the "Re-run workflow" button in the GitHub Actions UI or constructing the `gh` command manually, `gtdev` provides the exact copy/paste command to re-trigger the run for that specific branch.
 
 The user runs the suggested command and confirms the new build passes.
 

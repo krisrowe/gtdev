@@ -64,7 +64,9 @@ gtdev init --profile=maracuya
 
 ### 2. Build Tracking
 Query and view GitHub Action builds across multiple repositories simultaneously.
-- **Unified List**: See recent builds from all matched repositories in one table.
+- **Aggregated View**: See builds from multiple repositories in a single list.
+- **Focus on Failures**: Quickly identify which builds need attention.
+- **No More UI Hunting**: Get exact copy/paste commands to fetch logs or re-trigger workflows for specific runs without searching through GitHub UI or looking up `gh` CLI syntax.
 - **Status Icons**: Quick visual indicators for success (✅), failure (❌), or pending (⏳).
 
 ### 3. Environment Profiles (Fruit Profiles)
