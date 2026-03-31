@@ -111,7 +111,18 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
     click.echo('-' * 100)
     for r in all_runs:
         icon = get_status_icon(r['status'], r.get('conclusion'))
-        repo_display = (r['repo_name'][:17] + '...') if len(r['repo_name']) > 20 else r['repo_name']
+        
+        # Format as reponame (orgname)
+        parts = r['repo_name'].split('/')
+        if len(parts) == 2:
+            org, repo_name = parts
+            repo_display = f"{repo_name} ({org})"
+        else:
+            repo_display = r['repo_name']
+            
+        if len(repo_display) > 20:
+            repo_display = repo_display[:17] + '...'
+            
         branch = r.get('headBranch', 'unknown')
         date = format_date(r['createdAt'])
         click.echo('%-12s %-2s %-20s %-15s %-12s %s' % (
