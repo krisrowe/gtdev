@@ -1,5 +1,7 @@
 # User Journey: Getting Started with gtdev
 
+[⬅️ Back to Repository Home](../README.md)
+
 This document walks through a typical user experience with `gtdev`, from installation to advanced troubleshooting.
 
 ## Why Focusing on Local Workspace Matters
@@ -118,3 +120,5 @@ $ gtdev init --install-dependencies
 Proceed? [y/N]: y
 ✅ Successfully completed 'Configure Shell Path'
 ```
+
+[⬅️ Back to Repository Home](../README.md)
