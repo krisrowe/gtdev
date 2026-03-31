@@ -1,5 +1,7 @@
 import click
 import os
+import json
+from datetime import datetime
 from gtdev import sdk
 
 def format_path(path):
@@ -8,6 +10,26 @@ def format_path(path):
     if path.startswith(home):
         return path.replace(home, '~', 1)
     return path
+
+def get_status_icon(status, conclusion):
+    """Returns a concise icon for build status."""
+    if status != "completed":
+        return "⏳"
+    if conclusion == "success":
+        return "✅"
+    if conclusion == "failure":
+        return "❌"
+    if conclusion == "cancelled":
+        return "🚫"
+    return "❓"
+
+def format_date(date_str):
+    """Formats ISO date to M/DD HH:MM."""
+    try:
+        dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        return dt.strftime('%m/%d %H:%M')
+    except Exception:
+        return date_str
 
 @click.group()
 def main():
@@ -60,51 +82,73 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
         click.echo(f"No repositories matching '{repo}' found.")
         return
 
-    # Discovery identities for user-max-age filtering
-    identities = []
-    if user_max_age:
-        identities = sdk.get_current_identities()
-
+    identities = sdk.get_current_identities() if user_max_age else []
     all_runs = []
+    
     for r in all_repos:
         github_repo = r['github_repo']
-        
-        # Filter repos by user commit age if requested
-        if user_max_age:
-            if not sdk.has_recent_commits(r['path'], identities, user_max_age):
-                continue
+        if user_max_age and not sdk.has_recent_commits(r['path'], identities, user_max_age):
+            continue
 
         runs = sdk.get_builds(github_repo, limit=limit, refresh=refresh)
         for run in runs:
             run['repo_name'] = github_repo
-            
-            # Filter runs by user if requested
-            if user:
-                actor = run.get('triggering_actor', {}).get('login', '').lower()
-                title = run.get('displayTitle', '').lower()
-                if user.lower() not in actor and user.lower() not in title:
-                    continue
-            
+            actor = run.get('event', 'unknown').lower()
+            title = run.get('displayTitle', '').lower()
+            if user and user.lower() not in actor and user.lower() not in title:
+                continue
             all_runs.append(run)
 
     if not all_runs:
         click.echo("No builds matching criteria found.")
         return
 
-    # Sort all runs by createdAt descending
     all_runs.sort(key=lambda x: x['createdAt'], reverse=True)
     all_runs = all_runs[:limit]
 
-    header = '%-15s %-12s %-12s %-15s %-20s %-15s %s' % ('ID', 'STATUS', 'CONCLUSION', 'BRANCH', 'CREATED', 'EVENT', 'TITLE')
+    header = '%-12s %-4s %-20s %-15s %-12s %s' % ('ID', 'S', 'REPO', 'BRANCH', 'CREATED', 'TITLE')
     click.echo(header)
-    click.echo('-' * 120)
+    click.echo('-' * 100)
     for r in all_runs:
-        conc = r.get('conclusion') or 'pending'
-        actor = r.get('event', 'unknown')
+        icon = get_status_icon(r['status'], r.get('conclusion'))
+        repo_display = (r['repo_name'][:17] + '...') if len(r['repo_name']) > 20 else r['repo_name']
         branch = r.get('headBranch', 'unknown')
-        click.echo('%-15s %-12s %-12s %-15s %-20s %-15s %s' % (
-            str(r['databaseId']), r['status'], conc, branch, r['createdAt'], actor, r['displayTitle']
+        date = format_date(r['createdAt'])
+        click.echo('%-12s %-2s %-20s %-15s %-12s %s' % (
+            str(r['databaseId']), icon, repo_display, branch, date, r['displayTitle']
         ))
+
+@builds.command(name='show')
+@click.argument('id')
+@click.option('--repo', help='GitHub simple name (if not auto-discoverable).')
+def show_build_cmd(id, repo):
+    """Show details and log command for a specific build."""
+    target_repo = repo
+    if not target_repo:
+        # Try to find which repo this ID belongs to in the cache
+        cache_dir = sdk.get_config_dir() / "cache"
+        if cache_dir.exists():
+            for cache_file in cache_dir.glob("*_builds.json"):
+                try:
+                    with open(cache_file, 'r') as f:
+                        data = json.load(f)
+                        if any(str(run['databaseId']) == str(id) for run in data):
+                            target_repo = cache_file.name.replace('_builds.json', '').replace('_', '/')
+                            break
+                except Exception:
+                    continue
+    
+    if not target_repo:
+        click.secho("Could not auto-discover repo for this ID. Please provide --repo.", fg="yellow")
+        return
+
+    click.echo(f"Build ID: {id}")
+    click.echo(f"Repo:     {target_repo}")
+    click.echo("-" * 40)
+    click.echo("To view logs:")
+    click.secho(f"  gtdev logs --repo={target_repo} --id={id}", fg="cyan")
+    click.echo("\nTo download logs using gh directly:")
+    click.secho(f"  gh run view {id} --repo {target_repo} --log > build_{id}.log", fg="green")
 
 @main.command()
 @click.option('--repo', required=True, help='GitHub simple name.')
