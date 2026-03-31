@@ -17,13 +17,18 @@ def test_find_local_repos_respects_depth(tmp_path, monkeypatch):
     subprocess.run(['git', 'init', str(repo_dir)], check=True)
     subprocess.run(['git', '-C', str(repo_dir), 'remote', 'add', 'origin', 'https://github.com/user/repo.git'], check=True)
 
+    # Configure search root to tmp_path
+    cm = sdk.ConfigManager()
+    cm.add_root(str(tmp_path))
+    cm.save()
+
     # 1. Test with depth 2 (should NOT find it)
     monkeypatch.setenv('GTDEV_GIT_SCAN_DEPTH', '2')
-    repos = sdk.find_local_repos(tmp_path)
+    repos = sdk.find_local_repos()
     assert len(repos) == 0
 
     # 2. Test with depth 4 (should find it)
     monkeypatch.setenv('GTDEV_GIT_SCAN_DEPTH', '4')
-    repos = sdk.find_local_repos(tmp_path)
+    repos = sdk.find_local_repos()
     assert len(repos) == 1
     assert repos[0]['github_repo'] == 'user/repo'

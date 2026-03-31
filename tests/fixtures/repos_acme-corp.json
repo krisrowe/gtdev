@@ -1,0 +1,17 @@
+[
+  {
+    "name": "phoenix--apigee-gcp-infra",
+    "github_repo": "acme-corp/phoenix--apigee-gcp-infra",
+    "path": "~/src/acme/phoenix--apigee-gcp-infra"
+  },
+  {
+    "name": "phoenix-apigee-hybrid-deploy",
+    "github_repo": "acme-corp/phoenix-apigee-hybrid-deploy",
+    "path": "~/src/acme/phoenix-apigee-hybrid-deploy"
+  },
+  {
+    "name": "phoenix-apigee-apis-cicd",
+    "github_repo": "acme-corp/phoenix-apigee-apis-cicd",
+    "path": "~/src/acme/phoenix-apigee-apis-cicd"
+  }
+]

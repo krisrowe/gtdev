@@ -1,0 +1,21 @@
+{
+  "owner_hash": "200fb6c5a067e06708b1b4592c5cfd8f2a953bc35734bf6b6d6da70e16f60d83",
+  "name": "pitaya",
+  "description": "Enterprise environment with DNF package management and GitHub CLI dependencies.",
+  "guidance": [
+    {
+      "step": "Install GitHub CLI",
+      "command": "sudo dnf install -y gh",
+      "check": "command -v gh",
+      "notes": "Ensures the 'gh' command is available for repository and build operations."
+    },
+    {
+      "step": "Configure Shell Path",
+      "command": "echo \"export PATH=\\$PATH:~/.local/bin\" >> ~/.bashrc",
+      "check": "grep -q \".local/bin\" ~/.bashrc",
+      "notes": "Adds the local binary directory to your PATH for gtdev access."
+    }
+  ],
+  "package_manager": "dnf",
+  "shell_profile": "~/.bashrc"
+}

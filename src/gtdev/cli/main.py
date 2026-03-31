@@ -1,7 +1,9 @@
 import click
 import os
 import json
+import subprocess
 from datetime import datetime
+from functools import wraps
 from gtdev import sdk
 
 def format_path(path):
@@ -31,52 +33,300 @@ def format_date(date_str):
     except Exception:
         return date_str
 
+def format_guidance(profile, pm):
+    """Prints guidance from a profile with status checks."""
+    click.echo(f"\n--- Setup Guidance: {profile['name'].capitalize()} ---")
+    click.echo(profile.get("description", ""))
+    click.echo("")
+    
+    results = pm.check_status(profile)
+    all_passed = True
+    for i, (step, passed) in enumerate(results, 1):
+        status = "✅" if passed else "❌"
+        if not passed: all_passed = False
+        
+        click.secho(f"{status} {i}. {step['step']}", bold=True)
+        click.secho(f"   Command: {step['command']}", fg="yellow")
+        if step.get("notes"):
+            click.echo(f"   Note:    {step['notes']}")
+            
+    click.echo("-" * 40)
+    if not all_passed:
+        click.secho("Some steps are missing. Use 'gtdev init --install-dependencies' to execute them.", fg="cyan")
+    else:
+        click.secho("All setup steps appear to be complete.", fg="green")
+
+def run_guidance(profile, pm):
+    """Interactively runs missing commands from a profile."""
+    results = pm.check_status(profile)
+    completed = []
+    failed = []
+    
+    for step, passed in results:
+        if passed:
+            click.echo(f"✅ Step '{step['step']}' already complete.")
+            continue
+
+        click.secho(f"\n▶ Running: {step['step']}", bold=True)
+        click.secho(f"  Command: {step['command']}", fg="yellow")
+        
+        if click.confirm("Proceed?"):
+            try:
+                # Use shell=True for pipes/redirects
+                subprocess.run(step["command"], shell=True, check=True)
+                completed.append(step['step'])
+                click.secho(f"✅ Successfully completed '{step['step']}'", fg="green")
+            except subprocess.CalledProcessError as e:
+                failed.append(step['step'])
+                click.secho(f"❌ Error running command: {e}", fg="red")
+                if not click.confirm("Continue to next step?"):
+                    break
+        else:
+            click.echo(f"Skipped '{step['step']}'.")
+
+    click.echo("\n--- Setup Summary ---")
+    if completed:
+        click.echo("Completed:")
+        for c in completed: click.echo(f"  - {c}")
+    if failed:
+        click.secho("Failed:", fg="red")
+        for f in failed: click.echo(f"  - {f}")
+    
+    final_status = pm.check_status(profile)
+    if all(passed for _, passed in final_status):
+        click.secho("\n✨ Environment setup is now complete!", fg="green", bold=True)
+    else:
+        click.secho("\n⚠  Environment setup is still incomplete.", fg="yellow")
+
+def check_profile_status(pm, cm):
+    """Checks for missing setup steps and warns the user."""
+    if not cm.active_profile:
+        return True
+        
+    profile = pm.get_profile(cm.active_profile)
+    if not profile:
+        return True
+        
+    results = pm.check_status(profile)
+    missing = [step['step'] for step, passed in results if not passed]
+    if missing:
+        click.secho(f"⚠️  Missing setup steps for profile '{cm.active_profile}':", fg="yellow", err=True)
+        for m in missing:
+            click.echo(f"  - {m}", err=True)
+        click.secho("Run 'gtdev init --install-dependencies' to complete your environment setup.", fg="cyan", err=True)
+        click.echo("", err=True)
+        return False
+    return True
+
+def ensure_initialized():
+    """Decorator to ensure the tool is initialized before running a command."""
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            cm = sdk.ConfigManager()
+            if not cm.default_owner:
+                click.secho("❌ Error: gtdev is not initialized.", fg="red", err=True)
+                click.echo("Please run 'gtdev init --github-owner=<your-org-or-user>' to get started.", err=True)
+                click.get_current_context().exit(1)
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
 @click.group()
 def main():
     """gtdev CLI."""
-    pass
+    # Discourage running the tool itself as root/sudo
+    if os.getuid() == 0:
+        click.secho("WARNING: Running gtdev with sudo/root privileges is discouraged.", fg="yellow", err=True)
+        click.secho("This can result in configuration files being owned by root.", fg="yellow", err=True)
+        click.echo("", err=True)
 
 @main.command()
-def init():
-    """Initialize the gtdev workspace."""
+@click.option("--github-owner", help="GitHub user or organization name.")
+@click.option("--profile", help="Force a specific fruit profile (e.g., maracuya).")
+@click.option("--install-dependencies", is_flag=True, help="Interactively run missing setup commands.")
+def init(github_owner, profile, install_dependencies):
+    """Initialize or update the gtdev workspace and environment."""
     click.echo(sdk.init_workspace())
+    
+    pm = sdk.ProfileManager()
+    cm = sdk.ConfigManager()
+    
+    # Validation and Owner Update
+    if github_owner:
+        click.echo(f"Validating GitHub access for '{github_owner}'...")
+        success, message, count = sdk.validate_github_access(github_owner)
+        if not success:
+            click.secho(f"❌ {message}", fg="red", err=True)
+            click.get_current_context().exit(1)
+        
+        click.secho(f"✅ {message}", fg="green")
+        
+        # Count local repos found for this owner to focus on local workspace
+        local_repos = sdk.find_local_repos(owner=github_owner)
+        click.secho(f"Found {len(local_repos)} repos local (run 'gtdev repos list' to see these)", fg="cyan")
+        cm.default_owner = github_owner
+        
+        # Profile discovery (only if no active profile and not forced)
+        if not cm.active_profile and not profile:
+            matched = pm.match_by_owner(github_owner)
+            if matched:
+                cm.active_profile = matched["name"]
+                click.secho(f"Discovered and matched profile '{matched['name']}' for owner '{github_owner}'.", fg="cyan")
+    
+    # Requirement Check
+    if not cm.default_owner:
+        click.secho("❌ Error: --github-owner is required for initialization.", fg="red", err=True)
+        click.echo("Usage: gtdev init --github-owner=<your-org-or-user>", err=True)
+        click.get_current_context().exit(1)
+
+    # Manual Profile Override
+    if profile:
+        target = pm.get_profile(profile)
+        if target:
+            cm.active_profile = profile
+            click.secho(f"Active profile set to '{profile}'.", fg="cyan")
+        else:
+            click.secho(f"Profile '{profile}' not found.", fg="red")
+            click.get_current_context().exit(1)
+
+    cm.save()
+    click.secho(f"Configuration saved for owner: {cm.default_owner}", fg="green")
+
+    # Show Guidance
+    if cm.active_profile:
+        target_profile = pm.get_profile(cm.active_profile)
+        if target_profile:
+            if install_dependencies:
+                run_guidance(target_profile, pm)
+            else:
+                format_guidance(target_profile, pm)
+        else:
+            click.echo(f"Active profile '{cm.active_profile}' no longer exists.")
+
+@main.group()
+def github():
+    """Manage GitHub settings and identity."""
+    pass
+
+@github.command(name="show")
+@ensure_initialized()
+def github_show():
+    """Show current GitHub configuration and matched profile."""
+    cm = sdk.ConfigManager()
+    pm = sdk.ProfileManager()
+    
+    click.echo(f"Default Owner: {cm.default_owner}")
+    if cm.active_profile:
+        profile = pm.get_profile(cm.active_profile)
+        click.echo(f"Active Profile: {cm.active_profile}")
+        if profile:
+            click.echo(f"Description:    {profile.get('description', '')}")
+    else:
+        click.echo("Active Profile: (none)")
+
+@main.group()
+def config():
+    """Manage gtdev configuration."""
+    pass
+
+@config.command(name="show")
+@ensure_initialized()
+def config_show():
+    """Show current configuration."""
+    cm = sdk.ConfigManager()
+    click.echo(f"Config Directory: {cm.config_dir}")
+    click.echo(f"Default Owner:    {cm.default_owner}")
+    click.echo("Search Roots:")
+    for root in cm.search_roots:
+        click.echo(f"  - {format_path(root)}")
+
+@config.command(name="add-root")
+@ensure_initialized()
+@click.argument("path")
+def config_add_root(path):
+    """Add a directory to the repository search paths."""
+    cm = sdk.ConfigManager()
+    cm.add_root(path)
+    cm.save()
+    click.echo(f"Added search root: {path}")
+
+@config.command(name="remove-root")
+@ensure_initialized()
+@click.argument("path")
+def config_remove_root(path):
+    """Remove a directory from the repository search paths."""
+    cm = sdk.ConfigManager()
+    cm.remove_root(path)
+    cm.save()
+    click.echo(f"Removed search root: {path}")
 
 @main.group()
 def repos():
     """Manage local and GitHub repositories."""
     pass
 
-@repos.command(name='list')
-@click.option('--pattern', default='*', help='Filter by name or GitHub simple name.')
-def list_repos_cmd(pattern):
+@repos.command(name="list")
+@ensure_initialized()
+@click.option("--pattern", default="*", help="Filter by name or GitHub simple name.")
+@click.option("--owner", help="Filter by GitHub owner.")
+def list_repos_cmd(pattern, owner):
     """List local repositories and their GitHub mappings."""
-    profile = sdk.get_user_profile()
-    repos = sdk.find_local_repos(profile, pattern=pattern)
+    cm = sdk.ConfigManager()
+    pm = sdk.ProfileManager()
+    check_profile_status(pm, cm)
+    
+    effective_owner = owner or cm.default_owner
+    
+    if effective_owner != "all":
+        click.secho(f"Filtering by owner: {effective_owner}", fg="cyan")
+    
+    click.secho("Listing locally cloned repositories tracking origin:", fg="cyan")
+
+    repos = sdk.find_local_repos(pattern=pattern, owner=owner)
+    
     if not repos:
-        click.echo('No repositories found.')
+        click.echo("No repositories found.")
+        if effective_owner != "all":
+            click.echo(f"Tip: Try --owner=all or 'gtdev init --github-owner=<new_owner>' to change filtering.")
+        click.echo(f"Tip: Use 'gtdev config add-root <path>' if your repos are in a custom location.")
         return
-    header = '%-25s %-30s %s' % ('NAME', 'GITHUB REPO', 'LOCAL PATH')
+
+    header = "%-25s %-30s %s" % ("NAME", "GITHUB REPO", "LOCAL PATH")
     click.echo(header)
-    click.echo('-' * 100)
+    click.echo("-" * 100)
     for r in repos:
-        path = format_path(r['path'])
-        click.echo('%-25s %-30s %s' % (r['name'], r['github_repo'], path))
+        path = format_path(r["path"])
+        gh_repo = r["github_repo"]
+        if effective_owner != "all" and gh_repo.startswith(f"{effective_owner}/"):
+            gh_repo = gh_repo.replace(f"{effective_owner}/", "", 1)
+        click.echo("%-25s %-30s %s" % (r["name"], gh_repo, path))
 
 @main.group()
 def builds():
     """Query GitHub Action builds."""
     pass
 
-@builds.command(name='list')
-@click.option('--repo', default='*', help='GitHub simple name or pattern.')
-@click.option('--user', help='Contains match on email, name, or triggering actor.')
-@click.option('--user-max-age', type=int, help='Max age in hours for commits from current user.')
-@click.option('--limit', default=10, type=int, help='Number of builds to show.')
-@click.option('--refresh', is_flag=True, help='Skip cache and fetch fresh data.')
-def list_builds_cmd(repo, user, user_max_age, limit, refresh):
+@builds.command(name="list")
+@ensure_initialized()
+@click.option("--repo", default="*", help="GitHub simple name or pattern.")
+@click.option("--owner", help="Filter by GitHub owner.")
+@click.option("--user", help="Contains match on email, name, or triggering actor.")
+@click.option("--user-max-age", type=int, help="Max age in hours for commits from current user.")
+@click.option("--limit", default=10, type=int, help="Number of builds to show.")
+@click.option("--refresh", is_flag=True, help="Skip cache and fetch fresh data.")
+def list_builds_cmd(repo, owner, user, user_max_age, limit, refresh):
     """List recent builds for repositories."""
-    profile = sdk.get_user_profile()
-    all_repos = sdk.find_local_repos(profile, pattern=repo)
+    cm = sdk.ConfigManager()
+    pm = sdk.ProfileManager()
+    check_profile_status(pm, cm)
+    
+    effective_owner = owner or cm.default_owner
+
+    if effective_owner != "all":
+        click.secho(f"Filtering by owner: {effective_owner}", fg="cyan")
+
+    all_repos = sdk.find_local_repos(pattern=repo, owner=owner)
     
     if not all_repos:
         click.echo(f"No repositories matching '{repo}' found.")
@@ -86,15 +336,15 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
     all_runs = []
     
     for r in all_repos:
-        github_repo = r['github_repo']
-        if user_max_age and not sdk.has_recent_commits(r['path'], identities, user_max_age):
+        github_repo = r["github_repo"]
+        if user_max_age and not sdk.has_recent_commits(r["path"], identities, user_max_age):
             continue
 
         runs = sdk.get_builds(github_repo, limit=limit, refresh=refresh)
         for run in runs:
-            run['repo_name'] = github_repo
-            actor = run.get('event', 'unknown').lower()
-            title = run.get('displayTitle', '').lower()
+            run["repo_name"] = github_repo
+            actor = run.get("event", "unknown").lower()
+            title = run.get("displayTitle", "").lower()
             if user and user.lower() not in actor and user.lower() not in title:
                 continue
             all_runs.append(run)
@@ -103,35 +353,40 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
         click.echo("No builds matching criteria found.")
         return
 
-    all_runs.sort(key=lambda x: x['createdAt'], reverse=True)
+    all_runs.sort(key=lambda x: x["createdAt"], reverse=True)
     all_runs = all_runs[:limit]
 
-    header = '%-12s %-3s %-25s %-15s %-12s %s' % ('ID', '⚡', 'REPO', 'BRANCH', 'CREATED', 'TITLE')
+    header = "%-12s %-3s %-25s %-15s %-12s %s" % ("ID", "⚡", "REPO", "BRANCH", "CREATED", "TITLE")
     click.echo(header)
-    click.echo('-' * 110)
+    click.echo("-" * 110)
     for r in all_runs:
-        icon = get_status_icon(r['status'], r.get('conclusion'))
+        icon = get_status_icon(r["status"], r.get("conclusion"))
         
-        # Format as reponame (orgname)
-        parts = r['repo_name'].split('/')
-        if len(parts) == 2:
-            org, repo_name = parts
-            repo_display = f"{repo_name} ({org})"
+        gh_repo = r["repo_name"]
+        if effective_owner != "all" and gh_repo.startswith(f"{effective_owner}/"):
+            repo_display = gh_repo.replace(f"{effective_owner}/", "", 1)
         else:
-            repo_display = r['repo_name']
+            # Format as reponame (orgname)
+            parts = gh_repo.split("/")
+            if len(parts) == 2:
+                org, repo_name = parts
+                repo_display = f"{repo_name} ({org})"
+            else:
+                repo_display = gh_repo
             
         if len(repo_display) > 25:
-            repo_display = repo_display[:22] + '...'
+            repo_display = repo_display[:22] + "..."
             
-        branch = r.get('headBranch', 'unknown')
-        date = format_date(r['createdAt'])
-        click.echo('%-12s %-2s %-25s %-15s %-12s %s' % (
-            str(r['databaseId']), icon, repo_display, branch, date, r['displayTitle']
+        branch = r.get("headBranch", "unknown")
+        date = format_date(r["createdAt"])
+        click.echo("%-12s %-2s %-25s %-15s %-12s %s" % (
+            str(r["databaseId"]), icon, repo_display, branch, date, r["displayTitle"]
         ))
 
-@builds.command(name='show')
-@click.argument('id')
-@click.option('--repo', help='GitHub simple name (if not auto-discoverable).')
+@builds.command(name="show")
+@ensure_initialized()
+@click.argument("id")
+@click.option("--repo", help="GitHub simple name (if not auto-discoverable).")
 def show_build_cmd(id, repo):
     """Show details and log command for a specific build."""
     target_repo = repo
@@ -194,18 +449,18 @@ def show_build_cmd(id, repo):
     click.secho(f"  gh run view {id} --repo {target_repo} --log > build_{id}.log", fg="green")
 
 @main.command()
-@click.option('--repo', required=True, help='GitHub simple name.')
-@click.option('--id', required=True, help='Build/Run ID.')
+@ensure_initialized()
+@click.option("--repo", required=True, help="GitHub simple name.")
+@click.option("--id", required=True, help="Build/Run ID.")
 def logs(repo, id):
     """Fetch logs for a specific build run."""
-    if '*' in repo or '/' not in repo:
-        profile = sdk.get_user_profile()
-        matches = sdk.find_local_repos(profile, pattern=repo)
+    if "*" in repo or "/" not in repo:
+        matches = sdk.find_local_repos(pattern=repo)
         if not matches:
-            click.echo(f'No repo matching {repo} found.')
+            click.echo(f"No repo matching {repo} found.")
             return
-        repo = matches[0]['github_repo']
+        repo = matches[0]["github_repo"]
     click.echo(sdk.get_build_logs(repo, id))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

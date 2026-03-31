@@ -1,0 +1,12 @@
+{
+  "owner_hash": "another_placeholder",
+  "name": "plantain",
+  "description": "Restricted environment with manual binary installations.",
+  "guidance": [
+    {
+      "step": "Download GH CLI binary",
+      "command": "curl -L https://example.com/gh.tar.gz | tar -xz",
+      "notes": "Use this when package managers are blocked."
+    }
+  ]
+}

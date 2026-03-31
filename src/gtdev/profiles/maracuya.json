@@ -1,0 +1,21 @@
+{
+  "owner_hash": "f89272a363daf409259b4bd1f0886d439455e0d452483afe840d14a3e0047c96",
+  "name": "maracuya",
+  "description": "Standard exotic environment with DNF package management.",
+  "guidance": [
+    {
+      "step": "Install GitHub CLI",
+      "command": "sudo dnf install -y gh",
+      "check": "command -v gh",
+      "notes": "Required for repository discovery and build tracking."
+    },
+    {
+      "step": "Configure Shell Path",
+      "command": "echo \"export PATH=\\$PATH:~/.local/bin\" >> ~/.bashrc",
+      "check": "grep -q \".local/bin\" ~/.bashrc",
+      "notes": "Ensures gtdev and other local tools are in your PATH."
+    }
+  ],
+  "package_manager": "dnf",
+  "shell_profile": "~/.bashrc"
+}

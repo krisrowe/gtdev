@@ -1,0 +1,35 @@
+[
+  {
+    "databaseId": 123456789,
+    "status": "completed",
+    "conclusion": "success",
+    "displayTitle": "Deploy proxies to prod",
+    "createdAt": "2026-03-31T10:00:00Z",
+    "headBranch": "main",
+    "event": "push",
+    "workflowName": "CD Pipeline",
+    "repo_name": "acme-corp/phoenix-apigee-apis-cicd"
+  },
+  {
+    "databaseId": 123456780,
+    "status": "completed",
+    "conclusion": "failure",
+    "displayTitle": "Provision GCP Resources",
+    "createdAt": "2026-03-31T09:45:00Z",
+    "headBranch": "feat/lb-config",
+    "event": "pull_request",
+    "workflowName": "Infra Provisioning",
+    "repo_name": "acme-corp/phoenix--apigee-gcp-infra"
+  },
+  {
+    "databaseId": 123456781,
+    "status": "in_progress",
+    "conclusion": null,
+    "displayTitle": "Validate Hybrid Config",
+    "createdAt": "2026-03-31T10:15:00Z",
+    "headBranch": "main",
+    "event": "workflow_dispatch",
+    "workflowName": "Validation",
+    "repo_name": "acme-corp/phoenix-apigee-hybrid-deploy"
+  }
+]

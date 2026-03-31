@@ -13,18 +13,107 @@ Requires-Dist: pytest-timeout; extra == "dev"
 
 # gtdev
 
-Development Tool.
+Development Tool for managing local repositories and GitHub Action builds.
 
 ## Installation
 
-### For Users (pipx)
-Recommended for system-wide access:
+### Option 1: System-wide (Recommended)
+Install directly from the repository using `pipx`. This makes the `gtdev` command available globally without needing to clone the repo manually.
+
 ```bash
 pipx install git+https://github.com/krisrowe/gtdev.git
 ```
 
-### For Developers
+### Option 2: Local Environment (pip)
+Use this if you prefer managing your own virtual environment.
+
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install git+https://github.com/krisrowe/gtdev.git
+```
+
+### Option 3: For Developers (Make)
+If you are contributing to `gtdev`, use the included `Makefile`.
+
+```bash
+git clone https://github.com/krisrowe/gtdev.git
+cd gtdev
 make setup
 make test
+make install  # Performs 'pipx install -e .'
 ```
+
+## Getting Started
+
+### 1. Initialization
+`gtdev` requires a default GitHub owner (user or organization) to function. This owner is used to filter your local repository scans and query GitHub Action builds.
+
+**First-time setup:**
+```bash
+# Required: Provide your GitHub organization or username
+gtdev init --github-owner=myorg
+```
+
+`gtdev` will validate your GitHub access, ensure you are logged into the `gh` CLI, and attempt to discover a matching setup profile.
+
+### 2. Changing Configuration
+You can change your default owner or force a specific setup profile at any time by re-running `init`:
+
+```bash
+# Change owner
+gtdev init --github-owner=neworg
+
+# Force a specific environment profile (e.g., maracuya, guava, plantain)
+gtdev init --profile=maracuya
+```
+
+## Features
+
+### 1. Repository Discovery
+`gtdev` scans your local machine for Git repositories belonging to your default GitHub owner.
+- **Search Roots**: Configure where `gtdev` looks for code (defaults to `$HOME`).
+- **Owner Override**: Use `--owner=all` on list commands to see all discovered repositories regardless of owner.
+
+### 2. Build Tracking
+Query and view GitHub Action builds across multiple repositories simultaneously.
+- **Unified List**: See recent builds from all matched repositories in one table.
+- **Status Icons**: Quick visual indicators for success (✅), failure (❌), or pending (⏳).
+
+### 3. Environment Profiles (Fruit Profiles)
+`gtdev` uses non-descript "fruit profiles" to provide environment-specific setup guidance.
+- **Auto-Discovery**: `gtdev init` matches your owner name to a profile using a secure SHA-256 hash.
+- **Explicit Installation**: To run setup commands (like installing the GitHub CLI), use the `--install-dependencies` flag.
+
+## Usage Examples
+
+For a detailed, step-by-step walkthrough of using `gtdev` in a real-world Apigee environment, see the [User Journey Guide](docs/USER-JOURNEY.md).
+
+### Setup & Initialization
+```bash
+# Initialize (Validation required)
+gtdev init --github-owner=myorg
+
+# View status and guidance for your active profile
+gtdev init
+
+# Explicitly install missing dependencies
+gtdev init --install-dependencies
+```
+
+### Repos & Builds
+```bash
+# List all repositories for the active owner
+gtdev repos list
+
+# Override owner for a single command
+gtdev repos list --owner=all
+
+# List recent builds for a specific repo pattern
+gtdev builds list --repo=api-* --limit=5
+```
+
+## Privacy & Security
+- **No Hardcoded Names**: Organizational ties are managed via one-way hashes.
+- **Local Persistence**: Settings are stored in `~/.config/gtdev/`.
+- **Validation**: `gtdev` ensures you have the necessary tools (`gh` CLI) and permissions before saving its configuration.

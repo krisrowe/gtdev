@@ -1,0 +1,14 @@
+{
+  "owner_hash": "placeholder_for_future_org",
+  "name": "guava",
+  "description": "Environment with Brew package management for macOS users.",
+  "guidance": [
+    {
+      "step": "Install GitHub CLI via Homebrew",
+      "command": "brew install gh",
+      "check": "command -v gh",
+      "notes": "Ensures the 'gh' binary is available."
+    }
+  ],
+  "package_manager": "homebrew"
+}
