@@ -106,9 +106,9 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
     all_runs.sort(key=lambda x: x['createdAt'], reverse=True)
     all_runs = all_runs[:limit]
 
-    header = '%-12s %-4s %-20s %-15s %-12s %s' % ('ID', '⚡', 'REPO', 'BRANCH', 'CREATED', 'TITLE')
+    header = '%-12s %-3s %-25s %-15s %-12s %s' % ('ID', '⚡', 'REPO', 'BRANCH', 'CREATED', 'TITLE')
     click.echo(header)
-    click.echo('-' * 100)
+    click.echo('-' * 110)
     for r in all_runs:
         icon = get_status_icon(r['status'], r.get('conclusion'))
         
@@ -120,12 +120,12 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
         else:
             repo_display = r['repo_name']
             
-        if len(repo_display) > 20:
-            repo_display = repo_display[:17] + '...'
+        if len(repo_display) > 25:
+            repo_display = repo_display[:22] + '...'
             
         branch = r.get('headBranch', 'unknown')
         date = format_date(r['createdAt'])
-        click.echo('%-12s %-2s %-20s %-15s %-12s %s' % (
+        click.echo('%-12s %-2s %-25s %-15s %-12s %s' % (
             str(r['databaseId']), icon, repo_display, branch, date, r['displayTitle']
         ))
 
