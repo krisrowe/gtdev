@@ -74,8 +74,9 @@ Instead of hunting through GitHub UI to find the right Actions tab, repo, branch
 The `gtdev logs` command prints the logs to your terminal. Redirect them to a file to use as context for a quick Gemini CLI analysis:
 
 ```bash
-$ gtdev logs --repo=acme-corp/phoenix--apigee-gcp-infra --id=123456780 > build-error.log
-$ gemini prompt "Analyze this build error log and suggest a fix." --file=build-error.log
+$ mkdir -p ~/temp/logs
+$ gtdev logs --repo=acme-corp/phoenix--apigee-gcp-infra --id=123456780 > ~/temp/logs/build-error.log
+$ gemini --include-directories ~/temp/logs -p "Analyze build-error.log and suggest a fix."
 ```
 
 Gemini will analyze the issue, pinpoint the problematic code or configuration, and suggest a fix!
