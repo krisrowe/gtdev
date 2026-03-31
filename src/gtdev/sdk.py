@@ -231,7 +231,7 @@ def get_builds(github_repo: str, limit: int = 10, refresh: bool = False):
             except Exception:
                 pass
 
-    fields = "databaseId,status,conclusion,displayTitle,createdAt,headBranch,event,workflowName"
+    fields = "databaseId,status,conclusion,displayTitle,createdAt,headBranch,event,workflowName,pullRequests"
     cmd = ["gh", "run", "list", "--repo", github_repo, "--limit", str(max(limit, 20)), "--json", fields]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -241,6 +241,48 @@ def get_builds(github_repo: str, limit: int = 10, refresh: bool = False):
         return data
     except Exception:
         return []
+
+def clone_repo(github_repo: str, dest_path: Path):
+    cmd = ["gh", "repo", "clone", github_repo, str(dest_path)]
+    try:
+        subprocess.run(cmd, check=True)
+        return True, f"Successfully cloned {github_repo} to {dest_path}"
+    except subprocess.CalledProcessError as e:
+        return False, f"Failed to clone {github_repo}: {str(e)}"
+
+def get_prs(github_repo: str, limit: int = 10, state: str = "open", refresh: bool = False):
+    """Fetches PRs with 60s caching."""
+    cache_dir = get_config_dir() / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / f"{github_repo.replace('/', '_')}_prs.json"
+
+    if not refresh and cache_file.exists():
+        if time.time() - cache_file.stat().st_mtime < 60:
+            try:
+                with open(cache_file, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+
+    fields = "number,title,author,createdAt,state,url,headRefName,body"
+    cmd = ["gh", "pr", "list", "--repo", github_repo, "--limit", str(limit), "--state", state, "--json", fields]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+        with open(cache_file, "w") as f:
+            json.dump(data, f)
+        return data
+    except Exception:
+        return []
+
+def get_pr_details(github_repo: str, pr_number: str):
+    fields = "number,title,author,createdAt,state,url,headRefName,body,baseRefName,commits,reviews"
+    cmd = ["gh", "pr", "view", pr_number, "--repo", github_repo, "--json", fields]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return json.loads(result.stdout)
+    except Exception as e:
+        return {"error": str(e)}
 
 def get_build_logs(github_repo: str, run_id: str):
     cmd = ["gh", "run", "view", str(run_id), "--repo", github_repo, "--log"]

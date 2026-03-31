@@ -356,9 +356,9 @@ def list_builds_cmd(repo, owner, user, user_max_age, limit, refresh):
     all_runs.sort(key=lambda x: x["createdAt"], reverse=True)
     all_runs = all_runs[:limit]
 
-    header = "%-12s %-3s %-25s %-15s %-12s %s" % ("ID", "⚡", "REPO", "BRANCH", "CREATED", "TITLE")
+    header = "%-12s %-3s %-25s %-15s %-7s %-12s %s" % ("ID", "⚡", "REPO", "BRANCH", "PR", "CREATED", "TITLE")
     click.echo(header)
-    click.echo("-" * 110)
+    click.echo("-" * 120)
     for r in all_runs:
         icon = get_status_icon(r["status"], r.get("conclusion"))
         
@@ -379,9 +379,176 @@ def list_builds_cmd(repo, owner, user, user_max_age, limit, refresh):
             
         branch = r.get("headBranch", "unknown")
         date = format_date(r["createdAt"])
-        click.echo("%-12s %-2s %-25s %-15s %-12s %s" % (
-            str(r["databaseId"]), icon, repo_display, branch, date, r["displayTitle"]
+        
+        pr_display = ""
+        prs = r.get("pullRequests", [])
+        if prs:
+            pr_display = f"#{prs[0]['number']}"
+            
+        click.echo("%-12s %-2s %-25s %-15s %-7s %-12s %s" % (
+            str(r["databaseId"]), icon, repo_display, branch, pr_display, date, r["displayTitle"]
         ))
+
+@main.group()
+def prs():
+    """Manage GitHub pull requests."""
+    pass
+
+@prs.command(name="list")
+@ensure_initialized()
+@click.option("--repo", default="*", help="GitHub simple name or pattern.")
+@click.option("--owner", help="Filter by GitHub owner.")
+@click.option("--state", default="open", help="PR state: open, closed, merged, all.")
+@click.option("--limit", default=10, type=int, help="Number of PRs to show per repo.")
+def list_prs_cmd(repo, owner, state, limit):
+    """List pull requests for repositories."""
+    cm = sdk.ConfigManager()
+    pm = sdk.ProfileManager()
+    check_profile_status(pm, cm)
+    
+    effective_owner = owner or cm.default_owner
+
+    if effective_owner != "all":
+        click.secho(f"Filtering by owner: {effective_owner}", fg="cyan")
+
+    all_repos = sdk.find_local_repos(pattern=repo, owner=owner)
+    
+    if not all_repos:
+        click.echo(f"No repositories matching '{repo}' found.")
+        return
+
+    all_prs = []
+    for r in all_repos:
+        github_repo = r["github_repo"]
+        repo_prs = sdk.get_prs(github_repo, limit=limit, state=state)
+        for pr in repo_prs:
+            pr["repo_name"] = github_repo
+            all_prs.append(pr)
+
+    if not all_prs:
+        click.echo("No pull requests matching criteria found.")
+        return
+
+    # Sort by creation date
+    all_prs.sort(key=lambda x: x["createdAt"], reverse=True)
+
+    header = "%-7s %-25s %-15s %-12s %s" % ("PR", "REPO", "AUTHOR", "CREATED", "TITLE")
+    click.echo(header)
+    click.echo("-" * 100)
+    for pr in all_prs:
+        gh_repo = pr["repo_name"]
+        if effective_owner != "all" and gh_repo.startswith(f"{effective_owner}/"):
+            repo_display = gh_repo.replace(f"{effective_owner}/", "", 1)
+        else:
+            parts = gh_repo.split("/")
+            repo_display = parts[1] if len(parts) == 2 else gh_repo
+            
+        if len(repo_display) > 25:
+            repo_display = repo_display[:22] + "..."
+            
+        author = pr.get("author", {}).get("login", "unknown")
+        date = format_date(pr["createdAt"])
+        click.echo("%-7s %-25s %-15s %-12s %s" % (
+            f"#{pr['number']}", repo_display, author, date, pr["title"]
+        ))
+
+@prs.command(name="show")
+@ensure_initialized()
+@click.argument("number")
+@click.option("--repo", help="GitHub simple name (if not auto-discoverable).")
+def show_pr_cmd(number, repo):
+    """Show details and browser URL for a specific pull request."""
+    if number.startswith("#"):
+        number = number[1:]
+        
+    target_repo = repo
+    pr_data = None
+    
+    # Try to find repo in the cache
+    cache_dir = sdk.get_config_dir() / "cache"
+    if cache_dir.exists():
+        for cache_file in cache_dir.glob("*_prs.json"):
+            try:
+                with open(cache_file, 'r') as f:
+                    data = json.load(f)
+                    for pr in data:
+                        if str(pr['number']) == str(number):
+                            pr_data = pr
+                            if not target_repo:
+                                target_repo = cache_file.name.replace('_prs.json', '').replace('_', '/')
+                            break
+                    if pr_data:
+                        break
+            except Exception:
+                continue
+    
+    if not target_repo:
+        click.secho("Could not auto-discover repo for this PR. Please provide --repo.", fg="yellow")
+        return
+
+    # Fetch fresh details
+    details = sdk.get_pr_details(target_repo, number)
+    if "error" in details:
+        click.secho(f"Error fetching PR details: {details['error']}", fg="red")
+        return
+
+    click.secho(f"Pull Request #{details['number']}", bold=True)
+    click.echo(f"Title:    {details['title']}")
+    click.echo(f"Repo:     {target_repo}")
+    click.echo(f"Author:   {details.get('author', {}).get('login', 'unknown')}")
+    click.echo(f"Status:   {details['state']}")
+    click.echo(f"Created:  {details['createdAt']}")
+    click.echo(f"Branch:   {details['headRefName']} -> {details.get('baseRefName', 'unknown')}")
+    
+    click.echo("-" * 40)
+    click.echo("Browser URL:")
+    click.secho(f"  {details['url']}", fg="cyan")
+    
+    if details.get('body'):
+        click.echo("-" * 40)
+        body = details['body'].strip()
+        if len(body) > 500:
+            body = body[:497] + "..."
+        click.echo(body)
+
+    click.echo("-" * 40)
+    click.echo("To open in browser:")
+    click.secho(f"  gh pr view {number} --repo {target_repo} --web", fg="green")
+
+@repos.command(name="clone")
+@ensure_initialized()
+@click.argument("name")
+@click.option("--owner", help="GitHub owner (overrides default).")
+@click.option("--dest", help="Destination directory (defaults to first search root).")
+def clone_repo_cmd(name, owner, dest):
+    """Clone a repository from GitHub."""
+    cm = sdk.ConfigManager()
+    owner = owner or cm.default_owner
+    
+    if not owner:
+        click.secho("Error: No GitHub owner configured. Use 'gtdev init' or --owner.", fg="red")
+        return
+
+    github_repo = f"{owner}/{name}" if "/" not in name else name
+    
+    if not dest:
+        dest_root = Path(cm.search_roots[0])
+    else:
+        dest_root = Path(dest).expanduser().resolve()
+        
+    dest_path = dest_root / name.split("/")[-1]
+    
+    click.echo(f"Cloning {github_repo} to {dest_path}...")
+    success, msg = sdk.clone_repo(github_repo, dest_path)
+    if success:
+        click.secho(msg, fg="green")
+        # Ensure the root is in search_roots
+        if str(dest_root) not in [str(Path(r).expanduser().resolve()) for r in cm.search_roots]:
+            click.echo(f"Note: {dest_root} is not in your search roots. Adding it...")
+            cm.add_root(str(dest_root))
+            cm.save()
+    else:
+        click.secho(msg, fg="red")
 
 @builds.command(name="show")
 @ensure_initialized()

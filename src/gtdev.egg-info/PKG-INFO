@@ -77,13 +77,18 @@ gtdev init --profile=maracuya
 
 ### 2. Build Tracking
 Query and view GitHub Action builds across multiple repositories simultaneously.
-- **Unified List**: See recent builds from all matched repositories in one table.
+- **Aggregated View**: See builds from multiple repositories in a single list.
+- **Focus on Failures**: Quickly identify which builds need attention.
+- **No More UI Hunting**: Get exact copy/paste commands to fetch logs or re-trigger workflows for specific runs without searching through GitHub UI or looking up `gh` CLI syntax.
 - **Status Icons**: Quick visual indicators for success (✅), failure (❌), or pending (⏳).
 
 ### 3. Environment Profiles (Fruit Profiles)
 `gtdev` uses non-descript "fruit profiles" to provide environment-specific setup guidance.
 - **Auto-Discovery**: `gtdev init` matches your owner name to a profile using a secure SHA-256 hash.
 - **Explicit Installation**: To run setup commands (like installing the GitHub CLI), use the `--install-dependencies` flag.
+
+### 4. Local Workspace Focus
+`gtdev` reduces noise by focusing ONLY on the repositories you have cloned locally. In large organizations with hundreds of repositories and builds, remembering numerous identifiers or tracking active branches can lead to team confusion and high cognitive load. `gtdev` keeps your view clean by showing only what you are actually working on.
 
 ## Usage Examples
 
