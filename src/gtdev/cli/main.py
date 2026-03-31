@@ -135,26 +135,48 @@ def list_builds_cmd(repo, user, user_max_age, limit, refresh):
 def show_build_cmd(id, repo):
     """Show details and log command for a specific build."""
     target_repo = repo
-    if not target_repo:
-        # Try to find which repo this ID belongs to in the cache
-        cache_dir = sdk.get_config_dir() / "cache"
-        if cache_dir.exists():
-            for cache_file in cache_dir.glob("*_builds.json"):
-                try:
-                    with open(cache_file, 'r') as f:
-                        data = json.load(f)
-                        if any(str(run['databaseId']) == str(id) for run in data):
-                            target_repo = cache_file.name.replace('_builds.json', '').replace('_', '/')
+    build_data = None
+    
+    # Try to find which repo and build data this ID belongs to in the cache
+    cache_dir = sdk.get_config_dir() / "cache"
+    if cache_dir.exists():
+        for cache_file in cache_dir.glob("*_builds.json"):
+            try:
+                with open(cache_file, 'r') as f:
+                    data = json.load(f)
+                    for run in data:
+                        if str(run['databaseId']) == str(id):
+                            build_data = run
+                            if not target_repo:
+                                target_repo = cache_file.name.replace('_builds.json', '').replace('_', '/')
                             break
-                except Exception:
-                    continue
+                    if build_data:
+                        break
+            except Exception:
+                continue
     
     if not target_repo:
         click.secho("Could not auto-discover repo for this ID. Please provide --repo.", fg="yellow")
         return
 
+    # If not in cache or repo provided manually, try a fresh fetch for details
+    if not build_data:
+        runs = sdk.get_builds(target_repo, refresh=True)
+        for run in runs:
+            if str(run['databaseId']) == str(id):
+                build_data = run
+                break
+
     click.echo(f"Build ID: {id}")
     click.echo(f"Repo:     {target_repo}")
+    
+    if build_data:
+        icon = get_status_icon(build_data['status'], build_data.get('conclusion'))
+        click.echo(f"Status:   {icon} {build_data['status']} ({build_data.get('conclusion') or 'pending'})")
+        click.echo(f"Branch:   {build_data.get('headBranch', 'unknown')}")
+        click.echo(f"Created:  {build_data['createdAt']}")
+        click.echo(f"Title:    {build_data['displayTitle']}")
+    
     click.echo("-" * 40)
     click.echo("To view logs:")
     click.secho(f"  gtdev logs --repo={target_repo} --id={id}", fg="cyan")
