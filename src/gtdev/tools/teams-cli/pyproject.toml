@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "teams-cli"
+version = "0.1.0"
+description = "CLI for Microsoft Teams extraction"
+dependencies = [
+    "click>=8.0.0",
+    "requests>=2.25.0",
+    "rich>=13.0.0"
+]
+
+[project.scripts]
+teams = "teams_cli.cli:cli"
